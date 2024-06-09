@@ -1387,6 +1387,7 @@ function Pronoun(shape) {
                 console.log("ULTRAbc loaded: Version " + UBCver);
                 Player.OnlineSharedSettings.UBC = UBCver;
 		Player.OnlineSharedSettings.Inmap = false;
+                diaperWetter();
                 ServerAccountUpdate.QueueData({
                     OnlineSharedSettings: Player.OnlineSharedSettings
                 });
