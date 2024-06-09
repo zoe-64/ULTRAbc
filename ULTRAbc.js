@@ -32,7 +32,7 @@ var bcModSDK=function(){"use strict";const o="1.2.0";function e(o){alert("Mod ER
         repository: 'https://github.com/tetris245/ULTRAbc',
     });
 
-    //Main variables and settings for UBC and The Moaner
+//#region Main variables and settings for UBC and The Moaner
     window.UBCver = UBCver;
     let ini = 0;
     let kp = 0;
@@ -581,6 +581,781 @@ var bcModSDK=function(){"use strict";const o="1.2.0";function e(o){alert("Mod ER
         };
         localStorage.setItem(M_MOANER_moanerKey + "_" + Player.MemberNumber, JSON.stringify(controls));
     }
+    //#endregion Main variables and settings for UBC and The Moaner
+const pronounMap = {
+        "HeHim": {"subjective": "he", "objective": "him", "dependent": "his", "independent": "his", "reflexive": "himself"},
+        "SheHer": {"subjective": "she", "objective": "her", "dependent": "her", "independent": "hers", "reflexive": "herself"},
+        "TheyThem": {"subjective": "they", "objective": "them", "dependent": "their", "independent": "theirs", "reflexive": "themself"},
+        "ItIt": {"subjective": "it", "objective": "it", "dependent": "its", "independent": "its", "reflexive": "itself"}, // not sure if it's even used
+};
+/**
+ * @param {String} shape aka subjecive (they, she), objective (them, her),  depdendant (their, her), independent (theirs, hers), reflexive (themself, herself)
+ * @returns {String} pronoun
+ */
+function Pronoun(shape) {
+    let pronouns = Player.GetPronouns()
+    return pronounMap[pronouns][shape.toLowerCase()]
+}
+
+
+
+    //////////////////////////////////////////////////////////
+    // #region Ultrabdl                                     //
+    // BC-Diaper-Wetter                                     //
+    //////////////////////////////////////////////////////////	
+
+    DiaperUseLevels = {
+        "Clean": "#808080",
+        "MiddleWet": "#ffe58b",
+        "MaximumWet": "#ffd33e",
+        "MiddleMessy": "#423019",
+        "MaximumMessy": "#3C302C",
+        "SelfWet": "#4F4B1B",
+        "SelfMessy": "#3B2B17",
+    }
+    // Table to store all the defaul values for Ultrabdl()
+    const diaperDefaultValues = {
+        messChance: .3,
+        wetChance: .5,
+        baseTimer: 30,
+        regressionLevel: 0,
+        desperationLevel: 0,
+        messageType: "default",
+    };
+
+    // Convert the hex color to an RGB array
+    function hexToRgb(hex) {
+        if (hex == "Default" || hex == "#") {
+            hex = "#808080";
+        }
+        return hex.replace(/^#/, '').match(/.{2}/g).map(x => parseInt(x, 16));
+    }
+    // Convert the RGB array to a hex color
+    function rgbToHex([r, g, b]) {
+        return `#${[r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')}`;
+    }
+
+    function averageColor(hex1, hex2, ratio = 0.5) {
+        // Convert hex colors to RGB arrays
+        let rgb1 = hexToRgb(hex1);
+        let rgb2 = hexToRgb(hex2);
+    
+        // Calculate the weighted average RGB values based on the ratio
+        let avgRgb = rgb1.map((x, i) => Math.round(x * ratio + rgb2[i] * (1 - ratio)));
+    
+        // Convert the average RGB values back to hex
+        return rgbToHex(avgRgb);
+    }
+
+    // Initializer function
+    const verbs = {
+        "trembles": ["trembles", "shudders", "shakes", "quivers", "shivers", "struggles", "squirms"],
+        "trembling": ["trembling", "shaking", "quivering", "shivering", "struggling", "squirming"],
+        "moan": ["moan", "groan", "whimper", "whine", "cry"],
+        "squirm": ["squirm", "wriggle", "fidget", "shift", "shuffle"],
+        "blush": ["blush", "flush", "redden"],
+        "quickly": ["quickly", "rapidly", "swiftly", "promptly"],
+        "desperately": ["desperatly", "frantically", "anxiously"],
+        "burns": ["burns", "flushes", "glows"],
+        "embarrassment": ["embarrassment", "shame", "humiliation"],
+        "obvious": ["obvious", "clear", "evident"],
+        "wet": ["wet", "soaked", "soggy", "damp", "moist"],
+        "has-wet": ["wet", "soaked"],
+        "warm": ["warm", "hot"],
+        "diaper": ["diaper", "nappy", "pullup"],
+    }
+    function getVerb(verb) {
+        return verbs[verb][Math.floor(Math.random() * verbs[verb].length)];
+    }
+    function getItemsBelow() {
+        // if wearing stockings, socks, or shoes, skirt, they should be damp
+        let socks = InventoryGet(Player, "Socks")?.Asset?.Description?.toLowerCase();
+        let cloth = InventoryGet(Player, "Cloth")?.Asset?.Description?.toLowerCase();
+        let panties = InventoryGet(Player, "Panties")?.Asset?.Description?.toLowerCase();
+        let itemsBelow = [socks, cloth, panties];
+        let itemsToLookFor = ["stockings", "socks", "shoes", "skirt", "panties", "dress"];
+
+        let options = [];
+        for (let word of itemsToLookFor) {
+            for (let item of itemsBelow)
+            if (item?.includes(word)) {
+                options.push(item);
+            }
+        }
+        let result = "";
+        if (options.length > 1) {
+            options = options.slice(0, 2);
+            result = options.join(" and ");
+            result += " gets"
+        } else if (options.length === 1) {
+            result = options[0] + " get";
+        } else {
+            result = "legs are";
+        }
+
+        return result;
+    } 
+    function promptMessage(messageOptions) {
+        let message = messageOptions[Math.floor(Math.random() * messageOptions.length)];
+        currentDiaper = InventoryGet(Player, "ItemPelvis")?.Asset?.Description || InventoryGet(Player, "Panties")?.Asset?.Description || "diaper";
+        message = message.replace(/%name%/g, tmpname)
+                         .replace(/%dependent%/g, Pronoun("Dependent"))
+                         .replace(/%objective%/g, Pronoun("Objective"))
+                         .replace(/%subjective%/g, Pronoun("Subjective"))
+                         .replace(/%items-below%/g, getItemsBelow())
+                         .replace(/%current-diaper%/g, currentDiaper);
+        for(let verb in verbs) {
+            message = message.replace(new RegExp(`%${verb}%`, "g"), getVerb(verb));
+        }
+
+        console.log(message);
+        if (ultrabdl.messageType === "descreet") {
+            ChatRoomSendLocal(
+                message,
+                false
+            )
+        } else {
+        ServerSend("ChatRoomChat", {
+            Type: "Action",
+            Content: "gag",
+            Dictionary: [{
+                Tag: "gag",
+                Text: message
+            }]
+        });
+        }
+    }
+    const DiaperUseMessages = { 
+        descreet: {
+            Mess: "You have made a mess in your %diaper%.",
+            FullyMess: "You have fully soiled your %diaper%.",
+            Wet: "You have wet your %diaper%.",
+            FullyWet: "You have fully soiled your %diaper%.",
+            Immergency: "You are really in need of a diaper change!",
+            SelfWet: "You have wet your clothing. Get a %diaper% on you before You make another mess!",
+            SelfMess: "You have soiled your clothing. Get a %diaper% on you before You make another mess!",
+            noDiaper: "You do not have a %diaper%! Get one on before You make a mess!",
+            change: "You have changed your %diaper%."
+        },
+        default: {
+            Mess: [`%name% has made a mess in %dependent% %current-diaper%.`],
+            FullyMess: [`%name% has fully soiled %dependent% %current-diaper%.`],
+           Wet: [`%name% has wet %dependent% %current-diaper%.`],
+           FullyWet: [`%name% has fully wet %dependent% %current-diaper%.`],
+           Immergency: [`%name% is really in need of a diaper change!`],
+           SelfWet: [`%name% has wet %dependent% clothes. Get a %diaper% on %objective% before %subjective% makes another mess!`,
+                    `%name% does not have a %diaper%! Get one on %objective% before %subjective% makes a another mess~`],
+            SelfMess: [`%name% has soiled %dependent% clothes. Get a %diaper% on %objective% before %subjective% makes another mess!`],
+            noDiaper: [`%name% does not have a %diaper%! Get one on %objective% before %subjective% makes a mess~`],
+           change: [`%name% has changed %dependent% %current-diaper%.`],
+        },
+        hidding: {
+            Mess: [`%name% %trembles% as %dependent% diaper filled, trying desperately to remain discreet..`],
+            ullyMess: [`%name% diaper %quickly% fills, %name%'s %trembles% intensifies, %subjective%'s desperate to remain inconspicuous`],
+            We: [`%name% %desperately% %trembles% to conceal %dependent% embarrassment as %dependent% diaper %quickly% soaks.`],
+            FullWet: [`%name% %burns% with %embarrassment% as %dependent% diaper is completely saturated, %subjective% can't bear to imagine how %obvious% the soggy bulge peeks`],
+            Immergency: [`%name% silently %trembles%, as %dependent% diaper saggs heavily down %dependent% legs, %subjective% is in dire need of a change~`],
+            SelfWet: [`%name% freezes as %warm% liquid trickles down %dependent% legs, quickly creating a puddle beneath %dependent%; %dependent% %items-below% visibly damp.`,
+                      `%name% %trembles% as %warm% liquid spreads across %dependent% bottom, %dependent% %items-below% are now visibly damp.`,
+                      `%name% %trembles% as %subjective% %quickly% realizes %subjective% %has-wet% %dependent% clothes`],
+
+            SelfMess: [`%name% %shudders% as %warm% and %wet% mess spreads across %dependent% bottom, %dependent% %items-below% are now visibly soiled.`],
+            change: [`%name% %quickly% %trembling% changes %dependent% %current-diaper%.`],
+        }, // not sure why I did this but I had fun, would probably be better to hook an ai at this point 
+    };
+    class Ultrabdl {
+        // Updates the color of a diaper
+        /**
+         * @key {string} Item.Asset.Description - The name of the diaper
+         * @value {Array} [primaryIndex, (secondaryIndex)] - The indexes of the primary and secondary colors in the color array
+         * @value {number} absorbancy - The absorbancy of the diaper, how many wettings and messes it can take 
+        */
+        UltrabdlData = {
+            Diapers: {
+                "Diaper Patterned": {
+                    indexes: [1],
+                    type: "primary",
+                    absorbancy: 1, 
+                    },
+                    "Bulky Diaper": {
+                    indexes: [1,0],
+                    type: "primary&secondary",
+                    absorbancy: 2,
+                    },
+                    "Poofy Diaper": {
+                    indexes: [1,0],
+                    type: "primary&secondary",
+                    absorbancy: 2,
+                    },
+                    "Bulky Chastity Diaper": {
+                    indexes: [1,0],
+                    type: "primary&secondary",
+                    absorbancy: 2,
+                    },
+                    "Poofy Chastity Diaper": {
+                    indexes: [1,0],
+                    type: "primary&secondary",
+                    absorbancy: 2,
+                    },
+                    "Plastic Covered Diaper": {
+                    indexes: [0],
+                    type: "primary",
+                    absorbancy: 2,
+                    },
+                    "Satin Covered Diaper": {
+                        indexes: [0],
+                        type: "primary",
+                        absorbancy: 3,
+                    },
+                    "Diaper": {
+                        type: "mono", // only one color
+                        absorbancy: 1,    
+                    }
+            },
+            Items: {
+                "Adult Baby Harness": {"modifier": 0.2},
+                "Shiny Dress": {"modifier": 0.4},
+                "Bows Dress": {"modifier": 0.3},
+                "Puffy Dress" : { "modifier": 0.2}, 
+                "Sumer flower dress" : {"modifier": 0.2},
+                "Bib": {"modifier": 0.3},
+                "Bonnet Style 1": {"modifier": 0.2},
+                "Bonnet Style 2": {"modifier": 0.2},
+                "Rose Tiara": {"modifier": 0.2},
+                "Tutu": {"modifier": 0.2},
+                "Hollow Butt Plug": {"modifier": 0.2},
+                // socks
+                "Cow Printed Socks": {"modifier": 0.1},
+                "Striped Socks": {"modifier": 0.1},
+                "Vinyl Socks": {"modifier": 0.1},
+                // shoes
+                "Style 4": {"Modifier": 0.1},
+                // animal ears and accessories
+                "Halo": {"modifier": 0.1},       
+                "Unicorn Horn": {"modifier": 0.1},
+                "Reindeer Hairband": {"modifier": 0.1},
+                // negative modifiers
+                "Piercing Set": {"modifier": -0.1}, // piercings are not very baby-like
+                "Harem Stockings": {"modifier": -0.1},
+                "ID Card": {"modifier": -0.1}, // trying to be an adult ^.^
+                "Key Necklace": {"modifier": -0.1},
+                },
+            Regex: {
+                "Cute": {"modifier": 0.1},
+                "Frill": {"modifier": 0.2},
+                "Panties": {"modifier": -0.1},
+                "Bra": {"modifier": -0.1},
+                "Bikini": {"modifier": -0.1},
+                "Business": {"modifier": -0.1},
+                "Cheerleader": {"modifier": 0.1},
+                "Fur": {"modifier": 0.1},
+                "Fishnet": {"modifier": -0.1},
+                "Latex": {"modifier": -0.05},
+                "Flower": {"modifier": 0.1},
+                "Leather": {"modifier": -0.1},
+                "Puff": {"modifier": 0.1},
+                "Shiny": {"modifier": 0.1},
+                "Satin": {"modifier": 0.1},
+                "Ears": {"modifier": 0.1},
+                "Horns": {"modifier": -0.1},
+                "Crown": {"modifier": 0.1},
+                "Briefs": {"modifier": -0.1},
+                "Thong": {"modifier": -0.1},
+                "Crotch": {"modifier": -0.1},
+                "Heels": {"modifier": -0.1},
+                "Angel": {"modifier": 0.1},
+                "Pet": {"modifier": 0.1},
+                "Ribbons": {"modifier": 0.1},
+                "Plush": {"modifier": 0.1},
+                "Crib": {"modifier": 0.5},
+                "Cushion": {"modifier": 0.1},
+                "Teddy": {"modifier": 0.1},
+                "Bow": {"modifier": 0.1},
+                "Mittes": {"modifier": 0.1},
+                "Mits": {"modifier": 0.1},
+                "Pacifier": {"modifier": 0.3},
+                "Milk": {"modifier": 0.1},
+                "Nursery": {"modifier": 3},
+                "Heart": {"modifier": 0.1},
+                "Doll": {"modifier": 0.1},
+                "Baby": {"modifier": 0.1},
+            },
+            CraftingModifiers: {
+                absorbancy: {
+                    "massive": 3,
+                    "big": 2,
+                    "large": 1,
+                },
+                messChance: {
+                    "special laxative": 0.8, // put in other words or phrases that can be used for laxative
+                    "laxative": 0.4,
+                    "weak laxative": 0.2,
+                    "stinkies": 0.4,
+                    "messy": 0.2,
+                },
+                wetChance: {
+                    "special diuretic": 0.8,
+                    "diuretic": 0.4,
+                    "weak diuretic": 0.2,
+                },
+                regression: {
+                    "hypnotic": 5,
+                },
+                desperation: {
+                    "hypnotic": 5,
+                }
+            }
+                
+        }
+        getRegressionItems(items=Player.Appearance) {
+            let inFilter = [];
+            for (let item of items) {
+                if (this.UltrabdlData.Items[item.Asset.Description]) {
+                    inFilter.push(item);
+                }
+            }
+            for (let item of items) {
+                for (let key in this.UltrabdlData.Regex) {
+                    if (item.Asset.Description.toLowerCase().match(key.toLowerCase())) {
+                        if (!inFilter.includes(item)) {
+                            inFilter.push(item);
+                        }
+                    }
+                }
+            }       
+            return inFilter;
+        }
+        constructor() {
+            const ultrabdl = this;
+            this.messageType = diaperDefaultValues.messageType || "default",
+            this._wets = 0,
+            this._messes = 0,
+            this._PelvisItem = false,
+            this._PantiesItem = false,
+            this._messChance = diaperDefaultValues.messChance,
+            this._wetChance = diaperDefaultValues.wetChance,
+            this._regression = diaperDefaultValues.regressionLevel,
+            this._desperation = diaperDefaultValues.desperationLevel
+            this.enabled = true;
+
+            this.loopTimestamp = Date.now();
+            // Handle modifiers
+            
+            this.wet = {
+                set count(value) {
+                    ultrabdl._wets = value;
+                    ultrabdl.refreshDiaper();
+                },
+                get count() {return ultrabdl._wets},
+                set base(value) {ultrabdl._wetChance = value},
+                get base() {return ultrabdl._wetChance},
+                get chance() {
+                    let chance = ultrabdl._wetChance;
+                    for (let item of ultrabdl.getRegressionItems()) {
+                        for (let key in ultrabdl.UltrabdlData.CraftingModifiers.wetChance) {
+                            chance += item?.Craft?.Description?.includes(key) ? ultrabdl.UltrabdlData.CraftingModifiers.wetChance[key] : 0;
+                        }
+                    }
+                    return chance;
+                }
+            };
+            this.mess = {
+                set count(value) {
+                    ultrabdl._messes = value;
+                    ultrabdl.refreshDiaper();
+                },
+                get count() {return ultrabdl._messes},
+                set base(value) {ultrabdl._messChance = value},
+                get base() {return ultrabdl._messChance},
+                get chance() {
+                    let chance = ultrabdl._messChance;
+                    for (let item of ultrabdl.getRegressionItems()) {
+                        for (let key in ultrabdl.UltrabdlData.CraftingModifiers.messChance) {
+                            chance += item?.Craft?.Description?.includes(key) ? ultrabdl.UltrabdlData.CraftingModifiers.messChance[key] : 0;
+                        }
+                    }
+                    return chance;
+                }
+            }
+            this.regression = {
+                get base() {return ultrabdl._regression},
+                set base(value) {ultrabdl._regression = value},
+                get modifier() {
+                    let total = 0;
+                    console.log()
+                    for (let item of Player.Appearance) {
+                        if (ultrabdl.UltrabdlData.Items[item.Asset.Description]) {
+                            total += ultrabdl.UltrabdlData.Items[item.Asset.Description].modifier;
+                        }
+                        for (let key in ultrabdl.UltrabdlData.Regex) {
+                            if (item.Asset.Description.toLowerCase().match(key.toLowerCase())) {
+                                total += ultrabdl.UltrabdlData.Regex[key].modifier;
+                            }
+                        }
+                    }
+                    for (let item of ultrabdl.getRegressionItems()) {
+                        for (let key in ultrabdl.UltrabdlData.CraftingModifiers.regression) {
+                            total += item?.Craft?.Description?.includes(key) ? ultrabdl.UltrabdlData.CraftingModifiers.regression[key] : 0;
+                        }
+                    }
+                    return total;
+                },
+                step() {
+                    this.base += this.modifier;
+                }
+            }
+
+            this.desperation = {
+                get base() { return ultrabdl._desperation },
+                set base(value) { ultrabdl._desperation = value },
+                get modifier() {
+                    let total = ultrabdl._desperation;
+                    for (let item of ultrabdl.getRegressionItems()) {
+                        for (let key in ultrabdl.UltrabdlData.CraftingModifiers.desperation) {
+                            total += item?.Craft?.Description?.includes(key) ? ultrabdl.UltrabdlData.CraftingModifiers.regression[key] : 0;
+                        }
+                    };
+                    
+                    return total;
+                },
+                check() {
+                    if (ultrabdl.isMilk()) {
+                        this.base = 3;
+                    }
+                    if (!ultrabdl.isMilk()) {
+                        this.base = (this.base != 0) ? this.base - 1 : 0;
+                    }
+                }
+            }
+            
+            this.absorbancy = { 
+                get total() {
+                    let total = 0;
+                    if (ultrabdl.PelvisItem) {
+                        total += ultrabdl.UltrabdlData["Diapers"][ultrabdl.PelvisItem.Asset.Description].absorbancy;
+                    }
+                  
+                    if (ultrabdl.PantiesItem) {
+                        total += ultrabdl.UltrabdlData["Diapers"][ultrabdl.PantiesItem.Asset.Description].absorbancy;
+                    }
+                    return total;
+                }
+            }
+            this.regression.base -= this.regression.modifier;
+            localStorage.getItem("Ultrabdl") ? this.load() : 0;
+            
+            this.diaperTimerModifier = 1; // We will divide by the modifier (positive modifiers decrease the timer)
+            this.diaperRunning = true; // Helps with the kill switch
+            this.loop();
+            
+        }
+      
+        get diaperTimer() {
+            let modifier = this.diaperTimerModifier * Math.pow(0.5, (this.regression.base+1)) * (this.desperation.modifier + 1);
+
+            if (this.mess.chance + this.wet.chance > 1) {
+                modifier *= (this.mess.chance + this.wet.chance); 
+            }
+            return diaperDefaultValues.baseTimer / (1 + modifier);
+        }
+        get nextEncounter() {
+            let nextEncounter = ((this.loopTimestamp + this.diaperTimer * 60 * 1000)- Date.now())/1000 // bruh I spent 30 minutes on this mang.. I should start sleeping
+            return nextEncounter;
+        }
+        set PelvisItem(item) { 
+            this._PelvisItem = item;
+            if (!this.PelvisItem && !this.PantiesItem) {
+                this.mess.count = 0;
+                this.wet.count = 0;
+            }
+            this.refreshDiaper();
+        }
+        get PelvisItem() {
+            this._PelvisItem = InventoryGet(Player, 'ItemPelvis');
+            return this.isDiaper(this._PelvisItem) ? this._PelvisItem: false;
+        }
+        set PantiesItem(item) {
+            this._PantiesItem = item;
+            if (!this.PelvisItem && !this.PantiesItem) {
+                this.mess.count = 0;
+                this.wet.count = 0;
+            }
+            this.refreshDiaper();
+        }
+        get PantiesItem() {
+            this._PantiesItem = InventoryGet(Player, 'Panties');
+            return this.isDiaper(this._PantiesItem) ? this._PantiesItem: false;
+        }
+    
+
+        load() {
+            let data = JSON.parse(localStorage.getItem("Ultrabdl"));
+            this.wet.count = parseInt(data.wets) || 0;
+            this.mess.count = parseInt(data.messes) || 0;
+            this.regression.base = parseInt(data.regression) || 0;
+            this.mess.base = parseFloat(data.messChance) || diaperDefaultValues.messChance;
+            this.wet.base = parseFloat(data.wetChance) || diaperDefaultValues.wetChance;
+            this.messageType = data.messageType  || diaperDefaultValues.messageType;
+            this.enabled = data.enabled;
+            this.refreshDiaper();
+        }
+        save() {
+            localStorage.setItem("Ultrabdl", JSON.stringify({
+                wets: this.wet.count || 0,
+                messes: this.mess.count || 0,
+                regression: this.regression.base || 0,
+                messChance: this.mess.base || diaperDefaultValues.messChance,
+                wetChance: this.mess.base || diaperDefaultValues.wetChance,
+                messageType: this.messageType || diaperDefaultValues.messageType,
+                enabled: this.enabled
+            }));
+        }
+        reset () {
+            this.wet.count = 0;
+            this.mess.count = 0;
+            this.regression.base = diaperDefaultValues.regressionLevel;
+            this.mess.base = diaperDefaultValues.messChance;
+            this.wet.base = diaperDefaultValues.wetChance;
+            this.messageType = diaperDefaultValues.messageType;
+            this.enabled = true;
+            this.save();
+        }
+        refreshDiaper() { 
+            if (!this.enabled) {
+                return;
+            }
+            this.updateDiaperColor("ItemPelvis");
+            this.updateDiaperColor("Panties");
+            CharacterRefresh(Player, true);
+            ChatRoomCharacterUpdate(Player);
+            this.save();
+        }
+
+        changeDiaper() {
+            this.PelvisItem = InventoryGet(Player, "ItemPelvis");
+            this.PantiesItem = InventoryGet(Player, "Panties");
+            
+            this.wet.count = 0;
+            this.mess.count = 0;
+           
+            this.updateDiaperColor("ItemPelvis");
+            this.updateDiaperColor("Panties");
+            promptMessage(DiaperUseMessages[this.messageType].change)
+          
+        }
+        changePlayerDiaper(player) {
+            let pelvisItem = InventoryGet(player, "ItemPelvis");
+            let pantiesItem = InventoryGet(player, "Panties");
+            if (this.isDiaper(pelvisItem)) {
+                pelvisItem.Color = DiaperUseLevels["Clean"];
+                AppearanceSetItem(player, "ItemPelvis", pelvisItem);
+            }
+            if (this.isDiaper(pantiesItem)) {
+                pantiesItem.Color = DiaperUseLevels["Clean"];
+                AppearanceSetItem(player, "Panties", pantiesItem);
+            }
+        }
+            
+        // Check for if a diaper is in the Panties or ItemPelvies slot
+        isDiaper(item) {
+            return item?.Asset?.Name.toLowerCase().includes('diaper');
+        }
+        // Checks to see if the user has a nursery milk equiped
+        hasMilk() {
+            return (InventoryGet(Player, "ItemMouth")?.Asset?.Name === "RegressedMilk") || (InventoryGet(Player, "ItemMouth2")?.Asset?.Name === "RegressedMilk") || (InventoryGet(Player, "ItemMouth3")?.Asset?.Name === "RegressedMilk");
+        }
+        // Checks for a normal milk bottle
+        isMilk() {
+            let items = Player.Appearance
+            for (let item of items) {
+                if (item.Asset.Description.toLowerCase().includes("milk")) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+       
+        // ItemPelvis or Panties as slot
+        updateDiaperColor(slot) {
+            if (!this.enabled) {
+                return;
+            }
+            let item = InventoryGet(Player, slot);
+            if (!this.isDiaper(item)) { 
+                return;
+            }
+            let diaper = this.UltrabdlData["Diapers"][item.Asset.Description];
+            if ((diaper.type === "primary" || diaper.type === "primary&secondary") && typeof item.Color == "string") {
+                item.Color = item.Asset.DefaultColor
+            }
+            let color = {
+                messy: DiaperUseLevels["Clean"],
+                wet: DiaperUseLevels["Clean"] // in the end we just mix these together but messy is 50% stronger
+            }
+            let delta = {
+                "messy": this.mess.count / this.absorbancy.total,
+                "wet": this.wet.count / this.absorbancy.total,
+            }
+            // between clean and middle messy
+            if (delta.messy > 0.75) {
+                // between middle and maximum messy
+                if (delta.messy > 0.9) {
+                    color.messy = DiaperUseLevels["MaximumMessy"];
+                } else {
+                    color.messy = averageColor(DiaperUseLevels["MaximumMessy"], DiaperUseLevels["MiddleMessy"], delta.messy - 0.75);
+                }
+            } else {
+                color.messy = averageColor(DiaperUseLevels["MiddleMessy"], DiaperUseLevels["Clean"], delta.messy);
+            }
+            if (delta.wet > 0.75) {
+                // between clean and middle wet
+                if (delta.wet > 0.9) {
+                    color.wet = DiaperUseLevels["MaximumWet"];
+                } else {
+                    color.wet = averageColor(DiaperUseLevels["MaximumWet"], DiaperUseLevels["MiddleWet"], delta.wet - 0.75);
+                }
+            } else {
+                color.wet = averageColor(DiaperUseLevels["MiddleWet"], DiaperUseLevels["Clean"], delta.wet);
+            }
+            let primary = averageColor(color.messy, color.wet, 0.7);
+            let secondary = averageColor(color.messy, color.wet, 0.9);
+            if (diaper.type === "mono") {
+                if (item.Color == "Default") {
+                    item.Color = "#FFFFFF";
+                }
+                item.Color = primary; 
+            }
+
+            else if (diaper.type === "primary") {
+                item.Color[this.UltrabdlData["Diapers"][item.Asset.Description].indexes[0]] = primary
+            }
+            else if (diaper.type === "primary&secondary") {
+                item.Color[this.UltrabdlData["Diapers"][item.Asset.Description].indexes[0]] = primary;
+                
+                if (item.Color[this.UltrabdlData["Diapers"][item.Asset.Description].indexes[1]] == "Default") {
+                    item.Color[this.UltrabdlData["Diapers"][item.Asset.Description].indexes[1]] = "#FFFFFF";
+                }
+                item.Color[this.UltrabdlData["Diapers"][item.Asset.Description].indexes[1]] = secondary
+            }
+        
+        }
+
+        accident(isMess = false) {
+            if (!this.enabled) {
+                return;
+            }
+            // color shoes, socks, panties, and pelvis, suitlower, bottom, right leg, left leg, and suit, garters, socks
+            let itemsBelow = []
+            itemsBelow.push(InventoryGet(Player, "Shoes"));
+            itemsBelow.push(InventoryGet(Player, "Socks"));
+            itemsBelow.push(InventoryGet(Player, "Panties"));
+            itemsBelow.push(InventoryGet(Player, "ItemPelvis"));
+            itemsBelow.push(InventoryGet(Player, "ItemBoots"));
+            itemsBelow.push(InventoryGet(Player, "Garters"));
+            itemsBelow.push(InventoryGet(Player, "RightAnklet"));
+            itemsBelow.push(InventoryGet(Player, "LeftAnklet"));
+            itemsBelow.push(InventoryGet(Player, "SuitLower"));
+            itemsBelow.push(InventoryGet(Player, "ClothLower"));
+
+            for (let item of itemsBelow) {
+                if (item) {
+                    if (typeof item.Color === "string") {
+                        if (isMess) {
+                            item.Color = averageColor(item.Color, DiaperUseLevels["SelfMessy"], 0.2);
+                        } else {
+                            item.Color = averageColor(item.Color, DiaperUseLevels["SelfWet"], 0.2);
+                        }
+                    } else {
+                    for(let index in item.Color) {
+                        if (isMess) {
+                            item.Color[index] = averageColor(item.Color[index], DiaperUseLevels["SelfMessy"], 0.2);
+                        } else {
+                            item.Color[index] = averageColor(item.Color[index], DiaperUseLevels["SelfWet"], 0.2);
+                        }
+                    }
+                } 
+                }    
+            }
+            isMess ? promptMessage(DiaperUseMessages[this.messageType][this.messageType]["SelfMess"]) : promptMessage(DiaperUseMessages[this.messageType][this.messageType]["SelfWet"]);
+            this.refreshDiaper();
+        }
+        stop() {
+            this.diaperRunning = false;
+        }
+        restart() {
+            this.diaperRunning = true;
+        }
+
+        
+
+
+
+        // Body function
+        // If the baby uses their diaper, it will make the front of their diaper look like it's been used
+        async loop() {
+            while (this.diaperRunning) {
+                if (!this.enabled) {
+                    await new Promise(r => setTimeout(r, this.diaperTimer * 60 * 1000));
+
+                    continue;
+                }
+                this.regression.step();
+                this.desperation.check();
+                this.loopTimestamp = Date.now();
+                await new Promise(r => setTimeout(r, this.diaperTimer * 60 * 1000));
+                let pelvis = InventoryGet(Player, "ItemPelvis");
+                let panties = InventoryGet(Player, "Panties");
+                if ((this.isDiaper(pelvis) || this.isDiaper(panties)) && this.diaperRunning === true) {
+                    this.tick();
+                } else {
+                    this.accident();
+                }
+            }
+        }
+        tick() {
+            let rngMess = Math.random();
+            let rngWet = Math.random();
+            let chanceForNothing = 0.1;
+            let total = this.mess.chance + this.wet.chance;
+            let messChance = this.mess.chance / total;
+            let wetChance = this.wet.chance / total;
+            const randomValue = Math.random();
+
+            console.log("mess: " + messChance + " wet: " + wetChance);
+            if (randomValue < messChance) {
+                this.mess.count++;
+                if (this.absorbancy.total > this.mess.count) {
+                    promptMessage(DiaperUseMessages[this.messageType]["Mess"])
+                } else if (this.absorbancy.total == this.mess.count) {
+                    promptMessage(DiaperUseMessages[this.messageType]["FullyMess"])
+                } else {
+                    promptMessage(DiaperUseMessages[this.messageType]["Immergency"])
+                }
+            } else if (randomValue < wetChance + chanceForNothing) {
+            } else {
+                this.wet.count++;
+                if (this.absorbancy.total > this.mess.count) {
+                    promptMessage(DiaperUseMessages[this.messageType]["Wet"])
+                }
+                else if (this.absorbancy.total == this.wet.count) {
+                    promptMessage(DiaperUseMessages[this.messageType]["FullyWet"])
+                } else {
+                    promptMessage(DiaperUseMessages[this.messageType]["Immergency"])
+                }
+            }
+         
+         
+            this.updateDiaperColor("ItemPelvis");
+            this.updateDiaperColor("Panties");
+            ChatRoomCharacterUpdate(Player);
+        }
+
+    }
+
+    //#endregion Ultrabdl
+    //////////////////////////////////////////////////////////
+    //#region ULTRAbc Functions
 
     function M_MOANER_deleteControls() {
         kp = 1;
@@ -670,6 +1445,8 @@ var bcModSDK=function(){"use strict";const o="1.2.0";function e(o){alert("Mod ER
                     M_MOANER_saveControls();
                 }
 		ini = 1; 
+            ultrabdl = new Ultrabdl();
+
                 FBCsettings();
             } catch (err) {
                 console.log(err);
@@ -718,6 +1495,7 @@ var bcModSDK=function(){"use strict";const o="1.2.0";function e(o){alert("Mod ER
     ULTRAStruggleMinigameWasInterrupted();
     ULTRATitleExit();
 
+    ULTRACharacterAppearanceSetItem();
     //Bondage Brawl
     async function ULTRAPlatformAttack() {
         modApi.hookFunction('PlatformAttack', 4, (args, next) => {
@@ -739,6 +1517,24 @@ var bcModSDK=function(){"use strict";const o="1.2.0";function e(o){alert("Mod ER
             }
             next(args);
         });
+    }
+    // a hook for when player changes CharacterAppearance
+    async function ULTRACharacterAppearanceSetItem() {
+        modApi.hookFunction('CharacterAppearanceSetItem', 4, (args, next) => {
+            let [_character, slot, _asset] = args;
+            if (typeof ultrabdl !== 'undefined') {
+                let item = {"Asset":_asset}
+                if (slot == "ItemPelvis") {
+                    ultrabdl.PelvisItem = ultrabdl.isDiaper(item) ? false : item;
+                }
+                if (slot == "Panties") {
+                    ultrabdl.PantiesItem = ultrabdl.isDiaper(item) ? false : item;
+                } 
+            }
+          
+
+        next(args);
+    });
     }
 
     //Chat Room (+ name/nickname/pronouns management for player)
@@ -2307,8 +3103,8 @@ var bcModSDK=function(){"use strict";const o="1.2.0";function e(o){alert("Mod ER
             next(args);
         });
     }
-
-    //Other functions
+    //#endregion
+    //#region Other functions
 
     //Background
     function updateBackground() {
@@ -3493,7 +4289,7 @@ var bcModSDK=function(){"use strict";const o="1.2.0";function e(o){alert("Mod ER
         ChatRoomCharacterUpdate(Player);  
     }
 	
-    //Vision
+    //Vision 
     function GetBlindLevel0() {
         let blindLevel = 0;
         return blindLevel;
@@ -3539,8 +4335,9 @@ var bcModSDK=function(){"use strict";const o="1.2.0";function e(o){alert("Mod ER
         return blurLevel;
     }
 
+    // #endregion
     //////////////////////////////////////////////////////////
-    //Moaner
+    //#region Moaner
     //////////////////////////////////////////////////////////
 
     //ChatRoom
@@ -4575,473 +5372,9 @@ var bcModSDK=function(){"use strict";const o="1.2.0";function e(o){alert("Mod ER
         "tickle": []
     }
     M_MOANER_addMoansProfile("wildfox", M_MOANER_wildfoxMoans);
+//#endregion Moaner
 
-    //////////////////////////////////////////////////////////
-    //BC-Diaper-Wetter
-    //////////////////////////////////////////////////////////	
-
-    // A simple table for the colors that the script will use.
-    DiaperUseLevels = [
-        ["#808080", "#97916A", "#8B8D41"],
-        ["#877C6C", "#7E774E"],
-        ["#4C3017"]
-    ];
-
-    // Table to store all the defaul values for diaperWetter()
-    const diaperDefaultValues = {
-        messChance: .3,
-        wetChance: .5,
-        baseTimer: 30,
-        regressionLevel: 0,
-        desperationLevel: 0,
-        messLevelInner: 0,
-        wetLevelInner: 0,
-        messLevelOuter: 0,
-        wetLevelOuter: 0
-    };
-
-    diaperLoop = null; // Keeps a hold of the loop so it can be exited at any time easily
-
-    // Initializer function
-    function diaperWetter({
-        initMessChance = diaperDefaultValues.messChance,
-        initWetChance = diaperDefaultValues.wetChance,
-        baseTimer = diaperDefaultValues.baseTimer,
-        initRegressionLevel = diaperDefaultValues.regressionLevel,
-        initDesperationLevel = diaperDefaultValues.desperationLevel,
-        initMessLevelInner = diaperDefaultValues.messLevelInner,
-        initWetLevelInner = diaperDefaultValues.wetLevelInner,
-        initMessLevelOuter = diaperDefaultValues.messLevelOuter,
-        initWetLevelOuter = diaperDefaultValues.wetLevelOuter
-    } = {}) {
-
-        // Greeting message
-        ServerSend("ChatRoomChat", {
-            Type: "Action",
-            Content: "gag",
-            Dictionary: [{
-                Tag: "gag",
-                Text: "Say hello to the little baby " + tmpname + "!"
-            }]
-        });
-
-        // Initial clear.
-        refreshDiaper({
-            cdiaper: "both",
-            inMessLevelChastity: (initMessLevelOuter < 0 || initMessLevelOuter > 2) ?
-                diaperDefaultValues.messLevelOuter : initMessLevelOuter,
-            inWetLevelChastity: (initWetLevelOuter < 0 || initWetLevelOuter > 2) ?
-                ((initMessLevelOuter < 0 || initMessLevelOuter > 2) ?
-                    diaperDefaultValues.messLevelOuter :
-                    inMessLevelOuter
-                ) : ((initWetLevelOuter > initMessLevelOuter) ?
-                    initWetLevelOuter :
-                    ((initMessLevelOuter < 0 || initMessLevelOuter > 2) ?
-                        diaperDefaultValues.messLevelOuter :
-                        initMessLevelOuter
-                    )
-                ),
-            inMessLevelPanties: (initMessLevelInner < 0 || initMessLevelInner > 2) ?
-                diaperDefaultValues.messLevelInner : initMessLevelInner,
-            inWetLevelPanties: (initWetLevelInner < 0 || initWetLevelInner > 2) ?
-                ((initMessLevelInner < 0 || initMessLevelInner > 2) ?
-                    diaperDefaultValues.messLevelInner :
-                    initMessLevelOuter
-                ) : ((initWetLevelInner > initMessLevelInner) ?
-                    initWetLevelInner :
-                    ((initMessLevelInner < 0 || initMessLevelInner > 2) ?
-                        diaperDefaultValues.messLevelInner :
-                        initMessLevelInner
-                    )
-                ),
-        });
-        messChance = initMessChance;
-        wetChance = initWetChance;
-        diaperTimerBase = baseTimer; // The default amount of time between ticks in minutes
-        regressionLevel = initRegressionLevel; // Used for tracking how much the user has regressed (affects the timer)
-        desperationLevel = initDesperationLevel; // Used for tracking how recently a milk bottle has been used (affects the timer)
-
-        // Handle modifiers
-        var diaperTimerModifier = 1; // We will divide by the modifier (positive modifiers decrease the timer)
-        diaperTimerModifier = manageRegression(diaperTimerModifier);
-        diaperTimerModifier = manageDesperation(diaperTimerModifier);
-        diaperTimer = diaperTimerBase / diaperTimerModifier;
-
-        // Go into main loop
-        diaperRunning = true; // Helps with the kill switch
-        checkTick();
-    }
-
-    // Changes how long it takes between ticks (in minutes)
-    function changeDiaperTimer(delay) {
-        // Bound the delay to between 2 minutes and 1 hour
-        if (delay < 2) {
-            delay = 2;
-        } else if (delay > 60) {
-            delay = 60;
-        }
-        diaperTimerBase = delay; // Updates diaperTimerBase
-    }
-
-    // Refresh the diaper settings so wet and mess levels are 0. Pass "chastity", "panties", or "both" so only the correct diaper gets reset.
-    function refreshDiaper({
-        cdiaper = "both",
-        inWetLevelPanties = diaperDefaultValues.wetLevelInner,
-        inMessLevelPanties = diaperDefaultValues.messLevelInner,
-        inWetLevelChastity = diaperDefaultValues.wetLevelOuter,
-        inMessLevelChastity = diaperDefaultValues.messLevelOuter,
-    } = {}) {
-        DiaperChangeMessages = {
-            "ChangeDiaperInner": " has gotten a fresh inner diaper.",
-            "ChangeDiaperOuter": " has gotten a fresh outer diaper.",
-            "ChangeDiaperOnly": " has gotten a fresh diaper.",
-            "ChangeDiaperBoth": " has gotten a fresh pair of diapers."
-        };
-        if (cdiaper === "both") {
-            MessLevelPanties = inMessLevelPanties;
-            WetLevelPanties = inWetLevelPanties;
-            MessLevelChastity = inMessLevelChastity;
-            WetLevelChastity = inWetLevelChastity;
-            changeDiaperColor("ItemPelvis");
-            changeDiaperColor("Panties");
-            if (checkForDiaper("Panties") && checkForDiaper("ItemPelvis")) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperChangeMessages["ChangeDiaperBoth"]
-                    }]
-                });
-            } else if ((checkForDiaper("Panties") && !checkForDiaper("ItemPelvis")) || (checkForDiaper("ItemPelvis") && !checkForDiaper("Panties"))) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperChangeMessages["ChangeDiaperOnly"]
-                    }]
-                });
-            }
-        } else if (cdiaper === "chastity") {
-            MessLevelChastity = inMessLevelChastity;
-            WetLevelChastity = inWetLevelChastity;
-            changeDiaperColor("ItemPelvis");
-            if (checkForDiaper("ItemPelvis") && checkForDiaper("Panties")) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperChangeMessages["ChangeDiaperOuter"]
-                    }]
-                });
-            } else if (checkForDiaper("ItemPelvis") && !checkForDiaper("Panties")) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperChangeMessages["ChangeDiaperOnly"]
-                    }]
-                });
-            }
-        } else if (cdiaper === "panties") {
-            MessLevelPanties = inMessLevelPanties;
-            WetLevelPanties = inWetLevelPanties;
-            changeDiaperColor("Panties");
-            if (checkForDiaper("ItemPelvis") && checkForDiaper("Panties")) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperChangeMessages["ChangeDiaperOuter"]
-                    }]
-                });
-            } else if (checkForDiaper("Panties") && !checkForDiaper("ItemPelvis")) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperChangeMessages["ChangeDiaperOnly"]
-                    }]
-                });
-            }
-        }
-    }
-
-    // Check for if a diaper is in the Panties or ItemPelvies slot
-    function checkForDiaper(slot) {
-        return InventoryGet(Player, slot)?.Asset?.Name === "PoofyDiaper" || InventoryGet(Player, slot)?.Asset?.Name === "BulkyDiaper";
-    }
-
-    // Checks to see if the user has a nursery milk equiped
-    function checkForNurseryMilk() {
-        return (InventoryGet(Player, "ItemMouth")?.Asset?.Name === "RegressedMilk") || (InventoryGet(Player, "ItemMouth2")?.Asset?.Name === "RegressedMilk") || (InventoryGet(Player, "ItemMouth3")?.Asset?.Name === "RegressedMilk");
-    }
-
-    // Checks for a normal milk bottle
-    function checkForMilk() {
-        return (InventoryGet(Player, "ItemMouth")?.Asset?.Name === "MilkBottle");
-    }
-
-    // Handles the regression counter
-    function manageRegression(diaperTimerModifier = 1) {
-        if (checkForNurseryMilk() && regressionLevel < 3) {
-            regressionLevel++;
-        } else if (!checkForNurseryMilk() && regressionLevel > 0) {
-            regressionLevel--;
-        }
-        return diaperTimerModifier * Math.pow(2, regressionLevel);
-    }
-
-    // Handles "desperateness" aka how recently a milk bottle was drunk
-    function manageDesperation(diaperTimerModifier = 1) {
-        // If they have a milk bottle
-        if (checkForMilk()) {
-            desperationLevel = 3;
-        }
-        // If they don't have a milk bottle anymore
-        if (!checkForMilk()) {
-            // Decrease desperationLevel to a minimum of zero if no milk is found
-            desperationLevel = (desperationLevel != 0) ? desperationLevel - 1 : 0;
-        }
-        return diaperTimerModifier * (desperationLevel + 1);
-    }
-
-    // Updates the color of a diaper
-    function changeDiaperColor(slot) {
-        if (slot === "ItemPelvis" && checkForDiaper(slot)) {
-            InventoryWear(
-                Player,
-                InventoryGet(Player, slot)?.Asset?.Name,
-                slot,
-                [
-                    InventoryGet(Player, slot)?.Color[0],
-                    DiaperUseLevels[MessLevelChastity][WetLevelChastity - MessLevelChastity],
-                    InventoryGet(Player, slot)?.Color[2],
-                    InventoryGet(Player, slot)?.Color[3]
-                ],
-                InventoryGet(Player, slot)?.Difficulty,
-                Player.MemberNumber
-            );
-        } else if (slot === "Panties" && checkForDiaper(slot)) {
-            InventoryWear(
-                Player,
-                InventoryGet(Player, slot)?.Asset?.Name,
-                slot,
-                [
-                    InventoryGet(Player, slot)?.Color[0],
-                    DiaperUseLevels[MessLevelPanties][WetLevelPanties - MessLevelPanties],
-                    InventoryGet(Player, slot)?.Color[2],
-                    InventoryGet(Player, slot)?.Color[3]
-                ],
-                InventoryGet(Player, slot)?.Difficulty,
-                Player.MemberNumber
-            );
-        }
-    }
-
-    // Command to stop the script from running
-    function stopWetting() {
-        console.log("See you next time!");
-        diaperRunning = false;
-        clearTimeout(diaperLoop);
-        checkTick();
-    }
-
-    // Funcky while loop
-    function checkTick() {
-        // Terminate loop if the user isn't wearing a compatible diaper
-        if ((checkForDiaper("ItemPelvis") || checkForDiaper("Panties")) && diaperRunning === true) {
-            // Wait for a bit
-            diaperLoop = setTimeout(checkTick, diaperTimer * 60 * 1000);
-            // Go to main logic
-            diaperTick();
-        } else {
-            diaperRunning = false;
-            ServerSend("ChatRoomChat", {
-                Type: "Action",
-                Content: "gag",
-                Dictionary: [{
-                    Tag: "gag",
-                    Text: "Awww, " + tmpname + " is all grown up!"
-                }]
-            });
-        }
-    }
-
-    // Body function
-    // If the baby uses their diaper, it will make the front of their diaper look like it's been used
-    function diaperTick() {
-        // Handle modifiers 
-        DiaperUseMessages = {
-            "MessInner": " has messed " + pronoun3 + " inner diaper.",
-            "MessInnerFully": " has fully messed " + pronoun3 + " inner diaper.",
-            "WetInner": " has wet " + pronoun3 + " inner diaper.",
-            "WetInnerFully": " has fully wet " + pronoun3 + " inner diaper.",
-            "MessOuter": " has messed " + pronoun3 + " outer diaper.",
-            "MessOuterFully": " has fully messed " + pronoun3 + " outer diaper.",
-            "WetOuter": " has wet " + pronoun3 + " outer diaper.",
-            "WetOuterFully": " has fully wet " + pronoun3 + " outer diaper.",
-            "MessOnly": " has messed " + pronoun3 + " diaper.",
-            "MessOnlyFully": " has fully messed " + pronoun3 + " diaper.",
-            "WetOnly": " has wet " + pronoun3 + " diaper.",
-            "WetOnlyFully": " has fully " + pronoun3 + " her diaper."
-        };
-        var diaperTimerModifier = 1; // We will divide by the modifier (positive modifiers decrease the timer)
-        diaperTimerModifier = manageRegression(diaperTimerModifier);
-        diaperTimerModifier = manageDesperation(diaperTimerModifier);
-        diaperTimer = diaperTimerBase / diaperTimerModifier;
-        testMess = Math.random();
-        // If the baby messes, increment the mess level to a max of 2 and make sure that the wet level is at least as high as the mess level.
-        if (testMess > 1 - messChance) {
-            if (MessLevelPanties === 2 || !checkForDiaper("Panties")) {
-                MessLevelChastity = (MessLevelChastity < 2) ? MessLevelChastity + 1 : MessLevelChastity;
-                WetLevelChastity = (WetLevelChastity < MessLevelChastity) ? MessLevelChastity : WetLevelChastity;
-            } else if (checkForDiaper("Panties")) {
-                MessLevelPanties = MessLevelPanties + 1;
-                WetLevelPanties = (WetLevelPanties < MessLevelPanties) ? MessLevelPanties : WetLevelPanties;
-            }
-            // Display messages for when a diaper is messed.
-            if ((MessLevelPanties === 2 && checkForDiaper("Panties") && !checkForDiaper("ItemPelvis")) || (MessLevelChastity === 2 && checkForDiaper("ItemPelvis") && !checkForDiaper("Panties"))) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperUseMessages["MessOnlyFully"]
-                    }]
-                });
-            } else if ((checkForDiaper("Panties") && !checkForDiaper("ItemPelvis")) || (checkForDiaper("ItemPelvis") && !checkForDiaper("Panties"))) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperUseMessages["MessOnly"]
-                    }]
-                });
-            } else if (MessLevelChastity === 0) {
-                if (MessLevelPanties === 2) {
-                    ServerSend("ChatRoomChat", {
-                        Type: "Action",
-                        Content: "gag",
-                        Dictionary: [{
-                            Tag: "gag",
-                            Text: tmpname + DiaperUseMessages["MessInnerFully"]
-                        }]
-                    });
-                } else if (MessLevelPanties === 1) {
-                    ServerSend("ChatRoomChat", {
-                        Type: "Action",
-                        Content: "gag",
-                        Dictionary: [{
-                            Tag: "gag",
-                            Text: tmpname + DiaperUseMessages["MessInner"]
-                        }]
-                    });
-                }
-            } else if (MessLevelChastity === 1) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperUseMessages["MessOuter"]
-                    }]
-                });
-            } else if (MessLevelChastity === 2) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperUseMessages["MessOuterFully"]
-                    }]
-                });
-            }
-        }
-        // If the baby only wets, increment the wet level to a max of 2.
-        else if (testMess > 1 - wetChance) {
-            if (WetLevelPanties == 2 && (InventoryGet(Player, "Panties") !== "PoofyDiaper" && InventoryGet(Player, "Panties") !== "BulkyDiaper")) {
-                WetLevelChastity = (WetLevelChastity < 2) ? WetLevelChastity + 1 : WetLevelChastity;
-            } else {
-                WetLevelPanties = WetLevelPanties + 1;
-            }
-            // Display messages for when a diaper is wet.
-            if ((WetLevelPanties === 2 && checkForDiaper("Panties") && !checkForDiaper("ItemPelvis")) || (WetLevelChastity === 2 && checkForDiaper("ItemPelvis") && !checkForDiaper("Panties"))) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperUseMessages["MessOnlyFully"]
-                    }]
-                });
-            } else if ((checkForDiaper("Panties") && !checkForDiaper("ItemPelvis")) || (checkForDiaper("ItemPelvis") && !checkForDiaper("Panties"))) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperUseMessages["WetOnly"]
-                    }]
-                });
-            } else if (WetLevelChastity === 0) {
-                if (WetLevelPanties === 2) {
-                    ServerSend("ChatRoomChat", {
-                        Type: "Action",
-                        Content: "gag",
-                        Dictionary: [{
-                            Tag: "gag",
-                            Text: tmpname + DiaperUseMessages["WetInnerFully"]
-                        }]
-                    });
-                } else if (WetLevelPanties === 1) {
-                    ServerSend("ChatRoomChat", {
-                        Type: "Action",
-                        Content: "gag",
-                        Dictionary: [{
-                            Tag: "gag",
-                            Text: tmpname + DiaperUseMessages["WetInner"]
-                        }]
-                    });
-                }
-            } else if (WetLevelChastity === 1) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperUseMessages["WetOuter"]
-                    }]
-                });
-            } else if (WetLevelChastity === 2) {
-                ServerSend("ChatRoomChat", {
-                    Type: "Action",
-                    Content: "gag",
-                    Dictionary: [{
-                        Tag: "gag",
-                        Text: tmpname + DiaperUseMessages["WetOuterFully"]
-                    }]
-                });
-            }
-        }
-        // Don't update the color when it's not needed.
-        else {
-            return;
-        }
-        // Update color based on the DiaperUseLevels table.
-        changeDiaperColor("ItemPelvis");
-        changeDiaperColor("Panties");
-        ChatRoomCharacterUpdate(Player);
-    }
-
-    ///////////////////////////////////////////////////////////////				
-    //Commands
+//#region Commands
 
     CommandCombine([{
         Tag: 'asylum',
@@ -6569,340 +6902,190 @@ var bcModSDK=function(){"use strict";const o="1.2.0";function e(o){alert("Mod ER
         Tag: 'diaper',
         Description: "(action) (target or value) = plays with diapers (ABDL game).",
         Action: (args) => {
-            if (args === "") {
-                ChatRoomSendLocal(
-                    "<p style='background-color:#5fbd7a'><b>ULTRAbc</b>: Welcome to Bondage Club Diaper Wetter! Where we make sure babies use their diapers!\n" +
-                    " \n" +
-                    "The diaper command must include an action.\n" +
-                    "You need to wear one or two layers of diapers (only bulky and poofy versions)\n" +
-                    "<b>/diaper start</b> to enable the script\n" +
-                    "<b>/diaper stop</b> to disable the script\n" +
-                    "<b>/diaper tick</b> to force a tick\n" +
-                    " \n" +
-                    "To get new clean diapers:\n" +
-                    "<b>/diaper change1</b> (target) for normal diapers\n" +
-                    "<b>/diaper change2</b> (target) for chastity diapers\n" +
-                    "<b>/diaper change3</b> (target) for both diapers\n" +
-                    " \n" +
-                    "Customisation (before using /diaper start):\n" +
-                    "Use <b>/diaper custom</b> for detailed info</p>"
-                );
-            } else if (args === "custom") {
-                ChatRoomSendLocal(
-                    "<p style='background-color:#5fbd7a'><b>ULTRAbc</b>: Diaper customisation (before using /diaper start):\n" +
-                    "<b>/diaper setdesperation</b> (value between 0 and 3) for desperation level, normally controlled by having a milk bottle used on you\n" +
-                    "<b>/diaper setregression</b> (value between 0 and 3) for regression level, normally controlled by wearing Nursery Milk for an extended period of time\n" +
-                    "<b>/diaper settimer</b> (minutes) to change the wet/mess timer\n" +
-                    "<b>/diaper setwetchance</b> (value between 0 and 1) to control how often you will wet\n" +
-                    "<b>/diaper setmesschance</b> (value between 0 and 1) to control how often you will mess. Make sure this is lower than wetchance.\n" +
-                    "<b>/diaper setwet1</b> (value)* for wet level of normal diapers\n" +
-                    "<b>/diaper setwet2</b> (value)* for wet level of chastity diapers\n" +
-                    "<b>/diaper setmess1</b> (value)* for mess level of normal diapers\n" +
-                    "<b>/diaper setmess2</b> (value)* for mess level of chastity diapers - * = value between 0 and 2</p>"
-                );
-            } else if (args === "start") {
-                diaperWetter();
-            } else if (args === "stop") {
-                stopWetting();
-            } else if (args === "tick") {
-                diaperTick();
-            } else {
-                var stringDiaper1 = args;
-                var stringDiaper2 = stringDiaper1.split(/[ ,]+/);
-                var feature = stringDiaper2[0];
-                if (feature == "change1") {
-                    var targetname = stringDiaper2[1];
-                    if (targetname == null) {
-                        if (InventoryGet(Player, "Panties") == null) {
-                            ChatRoomSendLocal(
-                                "<p style='background-color:#5fbd7a'>ULTRAbc: You don't have normal diapers!</p>"
-                            );
-                        } else if (InventoryGet(Player, "Panties").Asset.Name == "BulkyDiaper" || InventoryGet(Player, "Panties").Asset.Name === "PoofyDiaper") {
-                            refreshDiaper("panties");
-                        } else {
-                            ChatRoomSendLocal(
-                                "<p style='background-color:#5fbd7a'>ULTRAbc: You don't have normal diapers!</p>"
-                            );
-                        }
-                    } else {
-                        var target = ChatRoomCharacter.filter(A => (A.Name.toLowerCase().startsWith(targetname.toLowerCase())));
-                        if (target[0] == null) {
-                            var targetnumber = parseInt(targetname);
-                            target[0] = ChatRoomCharacter.find((x) => x.MemberNumber === targetnumber);
-                        }
-                        if (target[0] != null) {
-                            if ((target[0].Nickname == '') || (target[0].Nickname == undefined)) {
-                                tgpname = target[0].Name;
-                            } else {
-                                tgpname = target[0].Nickname;
-                            }
-                            if (InventoryGet(target[0], "Panties") == null) {
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: " + ChatRoomHTMLEntities(tgpname) + " does not have normal diapers!</p>"
-                                );
-                            } else if (InventoryGet(target[0], "Panties").Asset.Name == "BulkyDiaper" || InventoryGet(target[0], "Panties").Asset.Name === "PoofyDiaper") {
-                                ChatRoomTargetMemberNumber = target[0].MemberNumber;
-                                var msg = "" + tmpname + " will change your normal diapers and allows you to use the /diaper change1 command.";
-                                targetNumber = ChatRoomTargetMemberNumber; 
-                                ChatRoomSendWhisper(targetNumber, msg);
-                            } else {
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: " + ChatRoomHTMLEntities(tgpname) + " does not have normal diapers!</p>"
-                                );
-                            }
-                            ChatRoomSetTarget(-1);
-                        }
-                    }
-                }
-                if (feature == "change2") {
-                    var targetname = stringDiaper2[1];
-                    if (targetname == null) {
-                        if (InventoryGet(Player, "ItemPelvis") == null) {
-                            ChatRoomSendLocal(
-                                "<p style='background-color:#5fbd7a'>ULTRAbc: You don't have chastity diapers!</p>"
-                            );
-                        } else if (InventoryGet(Player, "ItemPelvis").Asset.Name == "BulkyDiaper" || InventoryGet(Player, "ItemPelvis").Asset.Name === "PoofyDiaper") {
-                            refreshDiaper("chastity");
-                        } else {
-                            ChatRoomSendLocal(
-                                "<p style='background-color:#5fbd7a'>ULTRAbc: You don't have chastity diapers!</p>"
-                            );
-                        }
-                    } else {
-                        var target = ChatRoomCharacter.filter(A => (A.Name.toLowerCase().startsWith(targetname.toLowerCase())));
-                        if (target[0] == null) {
-                            var targetnumber = parseInt(targetname);
-                            target[0] = ChatRoomCharacter.find((x) => x.MemberNumber === targetnumber);
-                        }
-                        if (target[0] != null) {
-                            if ((target[0].Nickname == '') || (target[0].Nickname == undefined)) {
-                                tgpname = target[0].Name;
-                            } else {
-                                tgpname = target[0].Nickname;
-                            }
-                            if (InventoryGet(target[0], "ItemPelvis") == null) {
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: " + ChatRoomHTMLEntities(tgpname) + " does not have chastity diapers!</p>"
-                                );
-                            } else if (InventoryGet(target[0], "ItemPelvis").Asset.Name == "BulkyDiaper" || InventoryGet(target[0], "ItemPelvis").Asset.Name === "PoofyDiaper") {
-                                ChatRoomTargetMemberNumber = target[0].MemberNumber;
-                                var msg = "" + tmpname + " will change your chastity diapers and allows you to use the /diaper change2 command.";
-                                targetNumber = ChatRoomTargetMemberNumber; 
-                                ChatRoomSendWhisper(targetNumber, msg);
-                            } else {
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: " + ChatRoomHTMLEntities(tgpname) + " does not have chastity diapers!</p>"
-                                );
-                            }
-                            ChatRoomSetTarget(-1);
-                        }
-                    }
-                }
-                if (feature == "change3") {
-                    var targetname = stringDiaper2[1];
-                    if (targetname == null) {
-                        if ((InventoryGet(Player, "Panties") == null) && (InventoryGet(Player, "ItemPelvis") == null)) {
-                            ChatRoomSendLocal(
-                                "<p style='background-color:#5fbd7a'>ULTRAbc: You don't have a diaper! Get one on you before you make a mess!</p>"
-                            );
-                        } else if ((InventoryGet(Player, "Panties") == null) && (InventoryGet(Player, "ItemPelvis") != null)) {
-                            if (InventoryGet(Player, "ItemPelvis").Asset.Name == "BulkyDiaper" || InventoryGet(Player, "ItemPelvis").Asset.Name === "PoofyDiaper") {
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: You don't have two layers of diapers!</p>"
-                                );
-                            } else {
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: You don't have a diaper! Get one on you before you make a mess!</p>"
-                                );
-                            }
-                        } else if ((InventoryGet(Player, "Panties") != null) && (InventoryGet(Player, "ItemPelvis") == null)) {
-                            if (InventoryGet(Player, "Panties").Asset.Name == "BulkyDiaper" || InventoryGet(Player, "Panties").Asset.Name === "PoofyDiaper") {
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: You don't have two layers of diapers!</p>"
-                                );
-                            } else {
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: You don't have a diaper! Get one on you before you make a mess!</p>"
-                                );
-                            }
-                        } else if ((InventoryGet(Player, "Panties") != null) && (InventoryGet(Player, "ItemPelvis") != null)) {
-                            if ((InventoryGet(Player, "Panties").Asset.Name == "BulkyDiaper" || InventoryGet(Player, "Panties").Asset.Name === "PoofyDiaper") &&
-                                (InventoryGet(Player, "ItemPelvis").Asset.Name == "BulkyDiaper" || InventoryGet(Player, "ItemPelvis").Asset.Name === "PoofyDiaper")) {
-                                refreshDiaper("both");
-                            } else {
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: You don't have two layers of diapers!</p>"
-                                );
-                            }
-                        }
-                    } else {
-                        var target = ChatRoomCharacter.filter(A => (A.Name.toLowerCase().startsWith(targetname.toLowerCase())));
-                        if (target[0] == null) {
-                            var targetnumber = parseInt(targetname);
-                            target[0] = ChatRoomCharacter.find((x) => x.MemberNumber === targetnumber);
-                        }
-                        if (target[0] != null) {
-                            if ((target[0].Nickname == '') || (target[0].Nickname == undefined)) {
-                                tgpname = target[0].Name;
-                            } else {
-                                tgpname = target[0].Nickname;
-                            }
-                            if (InventoryGet(target[0], "Pronouns").Asset.Name == "HeHim") {
-                                tgpr1 = "He";
-                                tgpr2 = "him";
-                                tgpr3 = "his";
-                                tgpr4 = "he";
-                            } else if (InventoryGet(target[0], "Pronouns").Asset.Name == "SheHer") {
-                                tgpr1 = "She";
-                                tgpr2 = "her";
-                                tgpr3 = "her";
-                                tgpr4 = "she";
-                            } else {
-                                tgpr1 = "They";
-                                tgpr2 = "them";
-                                tgpr3 = "their";
-                                tgpr4 = "they";
-                            }
-                            if ((InventoryGet(target[0], "Panties") == null) && (InventoryGet(target[0], "ItemPelvis") == null)) {
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: " + ChatRoomHTMLEntities(tgpname) + " does not have a diaper! Get one on " + tgpr2 + " before " + tgpr4 + " makes a mess!</p>"
-                                );
-                            } else if ((InventoryGet(target[0], "Panties") == null) && (InventoryGet(target[0], "ItemPelvis") != null)) {
-                                if (InventoryGet(target[0], "ItemPelvis").Asset.Name == "BulkyDiaper" || InventoryGet(target[0], "ItemPelvis").Asset.Name === "PoofyDiaper") {
-                                    ChatRoomSendLocal(
-                                        "<p style='background-color:#5fbd7a'>ULTRAbc: " + ChatRoomHTMLEntities(tgpname) + " does not have two layers of diapers!</p>"
-                                    );
-                                } else {
-                                    ChatRoomSendLocal(
-                                        "<p style='background-color:#5fbd7a'>ULTRAbc: " + ChatRoomHTMLEntities(tgpname) + " does not have a diaper! Get one on " + tgpr2 + " before " + tgpr4 + " makes a mess!</p>"
-                                    );
-                                }
-                            } else if ((InventoryGet(target[0], "Panties") != null) && (InventoryGet(target[0], "ItemPelvis") == null)) {
-                                if (InventoryGet(target[0], "Panties").Asset.Name == "BulkyDiaper" || InventoryGet(target[0], "Panties").Asset.Name === "PoofyDiaper") {
-                                    ChatRoomSendLocal(
-                                        "<p style='background-color:#5fbd7a'>ULTRAbc: " + ChatRoomHTMLEntities(tgpname) + " does not have two layers of diapers!</p>"
-                                    );
-                                } else {
-                                    ChatRoomSendLocal(
-                                        "<p style='background-color:#5fbd7a'>ULTRAbc: " + ChatRoomHTMLEntities(tgpname) + " does not have a diaper! Get one on " + tgpr2 + " before " + tgpr4 + " makes a mess!</p>"
-                                    );
-                                }
-                            } else if ((InventoryGet(target[0], "Panties") != null) && (InventoryGet(target[0], "ItemPelvis") != null)) {
-                                if ((InventoryGet(target[0], "Panties").Asset.Name == "BulkyDiaper" || InventoryGet(target[0], "Panties").Asset.Name === "PoofyDiaper") &&
-                                    (InventoryGet(target[0], "ItemPelvis").Asset.Name == "BulkyDiaper" || InventoryGet(target[0], "ItemPelvis").Asset.Name === "PoofyDiaper")) {
-                                    ChatRoomTargetMemberNumber = target[0].MemberNumber;
-                                    var msg = "" + tmpname + " will change all your diapers and allows you to use the /diaper change3 command.";
-                                    targetNumber = ChatRoomTargetMemberNumber; 
-                                    ChatRoomSendWhisper(targetNumber, msg);     
-                                } else {
-                                    ChatRoomSendLocal(
-                                        "<p style='background-color:#5fbd7a'>ULTRAbc: " + ChatRoomHTMLEntities(tgpname) + " does not have two layers of diapers!</p>"
+            let [command, ...input] = args.split(/[ ,]+/);
+            let playerName = input[0]
+            let change = parseFloat(input[0]); 
 
-                                    );
+            switch (command) {
+                case "":
+                    let help = fetch("https://raw.githubusercontent.com/zoe-64/ULTRAbc/main/UBCcommands.html").then((response) => response.text());
+                    console.log(help);
+                    // turn into html
+                    help.then((html) => {
+                        let parser = new DOMParser();
+                        let doc = parser.parseFromString(html, 'text/html');
+                        let element = doc.documentElement;
+                        // Use the 'element' variable as needed
+                    });
+                    ChatRoomSendLocal(
+                        "<p style='background-color:#5fbd7a'><b>ULTRAbc</b>: Welcome to Bondage Club Diaper Wetter! Where we make sure babies use their diapers!\n" +
+                        " \n" +
+                        "The diaper command must include an action.\n" +
+                        " \n" +
+                        "<b>/diaper start</b> to enable the script\n" +
+                        "<b>/diaper stop</b> to disable the script\n" +
+                        "<b>/diaper tick</b> to force a tick\n" +
+                        " \n" +
+                        "To get new clean diapers:\n" +
+                        "<b>/diaper change</b> to change your diaper\n" +
+                        "<b>/diaper change (target)</b> to change someone else's diaper\n" +
+                        " \n" +
+                        "Customisation:\n" +
+                        "Use <b>/diaper custom</b> for detailed info</p>"
+                    );
+                    break;
+                case "custom":
+                    ChatRoomSendLocal(
+                        "<p style='background-color:#5fbd7a'><b>ULTRAbc</b>: Diaper customisation:\n" +
+                        //"<b>/diaper desperation</b> (value between 0 and 3) for desperation level, normally controlled by having a milk bottle used on you\n" +
+                        "<b>/diaper regression</b> (value between 0 and 3) for regression level, normally controlled by wearing Nursery Milk for an extended period of time\n" +
+                        "<b>/diaper timer</b> (minutes) to change the wet/mess timer\n" +
+                        "<b>/diaper wetchance</b> (value between 0 and 1) to control how often you will wet\n" +
+                        "<b>/diaper messchance</b> (value between 0 and 1) to control how often you will mess. Make sure this is lower than wetchance.\n" +
+                        "<b>/diaper wettings</b> (value) for wet level of normal diapers\n" +
+                        "<b>/diaper messes</b> (value) for mess level of normal diapers\n"+
+                        "<b>/diaper messageType</b> (descreet|embarressed|default) to change the message type\n"
+                    );
+                    break;
+                case "stats":
+                    ChatRoomSendLocal(
+                        "<p style='background-color:#5fbd7a'>ULTRAbc: Your current diaper stats are: \n" +
+                        "Desperation: " + ultrabdl.desperation.modifier + ", \n" +
+                        "Regression: " + ultrabdl.regression.total + ", \n" +
+                        "Regressive change: " + ultrabdl.regression.modifier + ", \n" +
+                        "Wet Chance: " + ultrabdl.wet.chance *100 + "%, \n" +
+                        "Mess Chance: " + ultrabdl.mess.chance *100+ "%, \n" +
+                        "Wets: " + ultrabdl.wet.count + ", \n" +
+                        "Messes: " + ultrabdl.mess.count + ", \n" +
+                        "Padding: " + ultrabdl.padding.total + ", \n" +
+                        "Aproximate timer: " + Math.floor(ultrabdl.diaperTimer) + " minutes.</p>\n"
+                    );
+                    break;
+            //-------------------- this should be a setting ------------------------------------------------------
+                case "start": 
+                    if (ultrabdl == null) {
+                        ultrabdl = new Ultrabdl();
+                    } else {
+                        ultrabdl.start();
+                    }
+                case "stop":
+                    if (ultrabdl != null) { 
+                        ultrabdl.stop();
+                        
+                        ChatRoomSendLocal(
+                            "<p style='background-color:#5fbd7a'>ULTRAbc: The diaper script has been disabled.</p>"
+                        );
+                    }
+                    break;
+                case "messageType":
+                    ultrabdl.messageType = change.toLowerCase()
+                    ChatRoomSendLocal(
+                        `<p style='background-color:#5fbd7a'>ULTRAbc: Your message type has been changed to ${ultrabdl.messageType}.</p>`
+                    );
+                    ultrabdl.save();
+            //---------------------------------------------------------------------------------------------------- 
+                case "tick":
+                    if (ultrabdl != null) {
+                        ultrabdl.tick();
+
+                        ChatRoomSendLocal(
+                            `<p style='background-color:#5fbd7a'>ULTRAbc: ${tmpname} uses ${Pronoun("dependent")} timemachine.</p>`
+                        );
+                    }
+                    break;
+                case "change":
+                    // 1. Changing yourself
+                    // 2. Changing someone else
+                        if (playerName == null) {
+                            if (!ultrabdl.PelvisItem || !ultrabdl.PantiesItem) {
+                                ChatRoomSendLocal(
+                                    "<p style='background-color:#5fbd7a'>ULTRAbc: You don't have a diaper!</p>"
+                                );
+                            } else 
+                                ultrabdl.changeDiaper();
+                            } else {
+                                let player = ChatRoomCharacter.filter(A => (A.Name.toLowerCase().startsWith(playerName.toLowerCase())))[0];
+                                if (player == null) {
+                                    let playerID = parseInt(playerName);
+                                    player = ChatRoomCharacter.find((x) => x.MemberNumber === playerID);
                                 }
-                                ChatRoomSetTarget(-1);
-                            }
+                                if (player != null) {
+                                    if ((player.Nickname == '') || (player.Nickname == undefined)) {
+                                        tgpname = player.Name;
+                                    } else {
+                                        tgpname = player.Nickname;
+                                    }
+                                    if (!ultrabdl.isDiaper(InventoryGet(player, "Panties")) && !ultrabdl.isDiaper(InventoryGet(player, "ItemPelvis"))) {
+                                        ChatRoomSendLocal(
+                                            "<p style='background-color:#5fbd7a'>ULTRAbc: " + ChatRoomHTMLEntities(tgpname) + " does not have normal diapers!</p>"
+                                        );
+                                    } else {
+                                        ultrabdl.changePlayerDiaper(player);
+                                        ChatRoomTargetMemberNumber = player.MemberNumber;
+                                        var msg = "" + tmpname + " changed your diaper!";
+                                        targetNumber = ChatRoomTargetMemberNumber; 
+                                        ChatRoomSendWhisper(targetNumber, msg);
+                                    }
+                                    ChatRoomSetTarget(-1);
+                                }
+                            } 
+                        break;
+                    case "desperation":
+                        ultrabdl.desperation.base = change
+                        ChatRoomSendLocal(
+                            `<p style='background-color:#5fbd7a'>ULTRAbc: Your desperation level has been changed to ${ultrabdl.desperation.modifier}.</p>`
+                        );
+                        break;
+                    case "messchance": // this could be a setting         
+                            ultrabdl.mess.chance = change
+                        ChatRoomSendLocal(
+                            `<p style='background-color:#5fbd7a'>ULTRAbc: Your chance to mess diapers has been changed to ${ultrabdl.mess.chance*100}%.</p>`
+                        );
+                        ultrabdl.save();
+                        break;
+                    case "messes":
+                        if (ultrabdl.PelvisItem || ultrabdl.PantiesItem) {
+                            ultrabdl.mess.count = change
+                            ChatRoomSendLocal(
+                                `<p style='background-color:#5fbd7a'>ULTRAbc: Your messes in your diaper has been changed to ${ultrabdl.mess.count} messes.</p>`
+                            );
                         }
-                    }
-                }
-                if (feature == "setdesperation") {
-                    var setchange = stringDiaper2[1];
-                    diaperDefaultValues.desperationLevel = setchange;
-                    setchange = "";
-                    ChatRoomSendLocal(
-                        "<p style='background-color:#5fbd7a'>ULTRAbc: Your desperation level has been changed.</p>"
-                    );
-                }
-                if (feature == "setmesschance") {
-                    var setchange = stringDiaper2[1];
-                    diaperDefaultValues.messChance = setchange;
-                    setchange = "";
-                    ChatRoomSendLocal(
-                        "<p style='background-color:#5fbd7a'>ULTRAbc: Your chance to mess diapers has been changed.</p>"
-                    );
-                }
-                if (feature == "setmess1") {
-                    if (InventoryGet(Player, "Panties") != null) {
-                        if (InventoryGet(Player, "Panties").Asset.Name == "BulkyDiaper" || InventoryGet(Player, "Panties").Asset.Name === "PoofyDiaper") {
-                            var setchange = stringDiaper2[1];
-                            if (setchange < diaperDefaultValues.wetLevelInner) {
-                                diaperDefaultValues.messLevelInner = setchange;
-                                setchange = "";
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: Your mess level for normal diapers has been changed.</p>"
-                                );
-                            }
+                        break;
+                    case "regression": 
+                        ultrabdl.regression.base = change
+                        ChatRoomSendLocal(
+                            `<p style='background-color:#5fbd7a'>ULTRAbc: Your regression level has been changed to ${ultrabdl.regression.total}.</p>`
+                        );
+                        break;
+                    case "timer":
+                        ultrabdl.diaperTimer = change
+                        ChatRoomSendLocal(
+                            `<p style='background-color:#5fbd7a'>ULTRAbc: Your wet/mess timer has been changed to ${ultrabdl.diaperTimer} minutes.</p>`
+                        );
+                        break;
+                    case "wetchance": // this could be a setting            
+                        ultrabdl.wet.chance = change
+                        ChatRoomSendLocal(
+                            `<p style='background-color:#5fbd7a'>ULTRAbc: Your chance to wet diapers has been changed to ${ultrabdl.wet.chance*100}%.</p>`
+                        );
+                        ultrabdl.save();
+                        break;
+                    case "wettings":
+                        if (ultrabdl.PelvisItem || ultrabdl.PantiesItem) {
+                            let [change,..._] = input
+                            ultrabdl.wet.count = change
+                            ChatRoomSendLocal(
+                                `<p style='background-color:#5fbd7a'>ULTRAbc: Your wettings in your diaper has been changed to ${ultrabdl.wet.count} wettings.</p>`
+                            );
                         }
-                    }
-                }
-                if (feature == "setmess2") {
-                    if (InventoryGet(Player, "ItemPelvis") != null) {
-                        if (InventoryGet(Player, "ItemPelvis").Asset.Name == "BulkyDiaper" || InventoryGet(Player, "ItemPelvis").Asset.Name === "PoofyDiaper") {
-                            var setchange = stringDiaper2[1];
-                            if (setchange < diaperDefaultValues.wetLevelOuter) {
-                                diaperDefaultValues.messLevelOuter = setchange;
-                                setchange = "";
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: Your mess level for chastity diapers has been changed.</p>"
-                                );
-                            }
-                        }
-                    }
-                }
-                if (feature == "setregression") {
-                    var setchange = stringDiaper2[1];
-                    diaperDefaultValues.regressionLevel = setchange;
-                    setchange = "";
-                    ChatRoomSendLocal(
-                        "<p style='background-color:#5fbd7a'>ULTRAbc: Your regression level has been changed.</p>"
-                    );
-                }
-                if (feature == "settimer") {
-                    var setchange = stringDiaper2[1];
-                    diaperDefaultValues.baseTimer = setchange;
-                    setchange = "";
-                    ChatRoomSendLocal(
-                        "<p style='background-color:#5fbd7a'>ULTRAbc: Your wet/mess timer has been changed.</p>"
-                    );
-                }
-                if (feature == "setwetchance") {
-                    var setchange = stringDiaper2[1];
-                    diaperDefaultValues.wetChance = setchange;
-                    setchange = "";
-                    ChatRoomSendLocal(
-                        "<p style='background-color:#5fbd7a'>ULTRAbc: Your chance to wet diapers has been changed.</p>"
-                    );
-                }
-                if (feature == "setwet1") {
-                    if (InventoryGet(Player, "Panties") != null) {
-                        if (InventoryGet(Player, "Panties").Asset.Name == "BulkyDiaper" || InventoryGet(Player, "Panties").Asset.Name === "PoofyDiaper") {
-                            var setchange = stringDiaper2[1];
-                            if (setchange > diaperDefaultValues.messLevelInner) {
-                                diaperDefaultValues.wetLevelInner = setchange;
-                                setchange = "";
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: Your wet level for normal diapers has been changed.</p>"
-                                );
-                            }
-                        }
-                    }
-                }
-                if (feature == "setwet2") {
-                    if (InventoryGet(Player, "ItemPelvis") != null) {
-                        if (InventoryGet(Player, "ItemPelvis").Asset.Name == "BulkyDiaper" || InventoryGet(Player, "ItemPelvis").Asset.Name === "PoofyDiaper") {
-                            var setchange = stringDiaper2[1];
-                            if (setchange > diaperDefaultValues.messLevelOuter) {
-                                diaperDefaultValues.wetLevelOuter = setchange;
-                                setchange = "";
-                                ChatRoomSendLocal(
-                                    "<p style='background-color:#5fbd7a'>ULTRAbc: Your wet level for chastity diapers has been changed.</p>"
-                                );
-                            }
-                        }
-                    }
+                        break;
+                    default:
+                        ChatRoomSendLocal(
+                            "<p style='background-color:#5fbd7a'>ULTRAbc: The diaper command must include an action.</p>"
+                        );
+                        break;
                 }
             }
-        }
     }])
 
     CommandCombine([{
@@ -14552,4 +14735,5 @@ CommandCombine([{
         }
     }])
 
+//#endregion Commands
 })();
